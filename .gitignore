@@ -18,3 +18,7 @@ local.properties
 debug.keystore
 build.log
 build-retry.log
+my-upload-key.jks
+build-release.log
+build-release-retry.log
+build-release-final.log
