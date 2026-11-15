@@ -1,0 +1,6 @@
+{
+  "summary":  "Implementation plan for adding an embedded dual-transport MCP (Model Context Protocol) server (Streamable HTTP + Legacy SSE) with Bearer token authentication, per-category tool toggles, and a Web UI MCP configuration & testing console to PhoneDeck.",
+  "updatedAt":  "2026-11-14T20:41:40.102637631Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

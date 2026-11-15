@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">PhoneDeck</string>
+    <string name="server_running">Remote Control Server Running</string>
+    <string name="server_stopped">Server Stopped</string>
+    <string name="notification_channel_name">PhoneDeck Background Service</string>
+    <string name="notification_channel_desc">Maintains remote connection when screen is off</string>
+    <string name="wake_lock_active">Wake Lock Active (CPU Awake)</string>
+    <string name="adb_command_hint">Run: adb reverse tcp:8080 tcp:8080</string>
+    <string name="accessibility_service_label">PhoneDeck Hands-Free Assistant</string>
+    <string name="accessibility_service_desc">Assists remote app install and uninstall confirmations triggered from your PhoneDeck Web UI.</string>
+</resources>

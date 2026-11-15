@@ -1,0 +1,6 @@
+{
+  "name": "PhoneDeck",
+  "description": "Control your Android phone remotely from a desktop browser dashboard with full device automation, app launcher, clipboard sync, remote shell, and notifications.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
