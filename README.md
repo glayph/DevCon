@@ -1,22 +1,51 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# PhoneDeck
 
-# Run and deploy your AI Studio app
+PhoneDeck is an Android device-management console. It provides an on-device control surface and an optional local web interface for managing a phone that is owned or administered by the person using it.
 
-This contains everything you need to run your app locally.
+> [!IMPORTANT]
+> ## Consent and privacy notice
+>
+> PhoneDeck must only be installed and used with the device owner's **clear, informed, and revocable consent**. Do not use it to secretly monitor a girlfriend, boyfriend, family member, employee, or any other person. Remote access, screen casting, notifications, files, location, contacts, SMS, call information, app usage, microphone, camera, and other sensitive capabilities must be enabled only when the device owner understands and approves the specific access. Follow applicable law and organizational policy.
 
-View your app in AI Studio: https://ai.studio/apps/99c14ccf-4ec2-457d-aa1e-df4f50d879c7
+## What it does
 
-## Run Locally
+Depending on the permissions explicitly granted on the managed device, PhoneDeck can provide remote administration features such as:
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+- Device status and connectivity information
+- Permission and service status management
+- App management and installation workflows
+- Notification and event visibility
+- File and media access
+- Optional live screen casting
+- Device commands and action logs
 
+These capabilities are sensitive. The app's visible indicators, Android permission dialogs, notification surfaces, and access logs should remain enabled so the device owner can see and revoke access at any time.
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
-7. If you have already published your app in AI Studio, please [request upload key reset](https://support.google.com/googleplay/android-developer/answer/9842756#zippy=%2Crequest-an-upload-key-reset) in Google Play Console.
+## Build locally
+
+**Prerequisites:** Android Studio or a compatible JDK, Android SDK Platform 36.1, and the Android SDK Build Tools.
+
+```bash
+./gradlew assembleDebug
+```
+
+The debug APK is produced at `app/build/outputs/apk/debug/app-debug.apk`.
+
+## Configuration
+
+1. Open the project in Android Studio, or use the included Gradle wrapper.
+2. Create a local `.env` file only if your deployment requires the variables documented in `.env.example`.
+3. Do not commit secrets, API keys, signing keys, or private endpoint credentials.
+4. Install the APK only on a device whose owner has approved the installation and every requested permission.
+
+## Security guidance
+
+- Keep the web interface bound to a trusted network and protect it with authentication.
+- Do not expose the management port directly to the public internet.
+- Review action logs and revoke permissions that are no longer needed.
+- Do not attempt to conceal the app from the device owner or bypass Android security warnings such as Google Play Protect.
+- For organizations, use a documented, consent-based mobile-device-management policy.
+
+## License
+
+Add the project's intended license before distributing or deploying PhoneDeck publicly.
