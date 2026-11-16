@@ -21,3 +21,8 @@
 -keep class com.example.service.** { *; }
 -keep class com.example.PhoneDeckApplication { *; }
 
+# OkHttp detects these optional desktop/JVM TLS providers at runtime. Android
+# does not bundle them, so they must not be treated as required R8 classes.
+-dontwarn org.bouncycastle.**
+-dontwarn org.conscrypt.**
+-dontwarn org.openjsse.**
