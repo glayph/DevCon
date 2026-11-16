@@ -8,26 +8,41 @@ import android.content.ComponentName
 import android.content.Context
 import android.os.Build
 import com.example.data.CommandLogRepository
-import com.example.server.ServerRuntime
 
 /**
  * Persisted Android JobScheduler daemon watchdog that automatically restarts the
- * PhoneDeck HTTP server and public tunnel across device reboots, network transitions,
- * and background process reclamations without posting any OS notifications.
+ * PhoneDeck foreground server service after reboot, network availability, and process
+ * recovery events. The foreground service owns the persistent user-visible notification.
  */
 class KeepAliveJobService : JobService() {
 
     override fun onStartJob(params: JobParameters?): Boolean {
         val appCtx = applicationContext
+        if (com.example.data.ServerStateManager.isManuallyStopped(appCtx)) {
+            cancelAll(appCtx)
+            jobFinished(params, false)
+            return false
+        }
         runCatching {
-            ServerRuntime.ensureRunning(appCtx)
+            // A JobService is temporary. Do not start a long-lived socket/server in its
+            // background process and then immediately finish the job. Ask the dedicated
+            // foreground service to own the backend lifecycle instead.
+            RemoteServerService.startService(
+                appCtx,
+                com.example.data.ServerStateManager.getSavedPort(appCtx)
+            )
             BootAndWatchdogReceiver.scheduleWatchdog(appCtx)
             CommandLogRepository.log(
                 "SYSTEM",
                 "job_watchdog",
                 "local",
                 200,
-                "Backend runtime ensured (jobId=${params?.jobId ?: 0})"
+                "Foreground server service requested (jobId=${params?.jobId ?: 0})"
+            )
+        }.onFailure {
+            CommandLogRepository.log(
+                "WARN", "job_watchdog", "local", 0,
+                "Could not request foreground server service: ${it.message}"
             )
         }
         jobFinished(params, false)
@@ -46,6 +61,7 @@ class KeepAliveJobService : JobService() {
 
         fun scheduleAll(context: Context) {
             val appCtx = context.applicationContext
+            if (com.example.data.ServerStateManager.isManuallyStopped(appCtx)) return
             val js = appCtx.getSystemService(Context.JOB_SCHEDULER_SERVICE) as? JobScheduler ?: return
             val component = ComponentName(appCtx, KeepAliveJobService::class.java)
 
@@ -73,6 +89,7 @@ class KeepAliveJobService : JobService() {
 
         fun scheduleRecovery(context: Context, delayMs: Long = 3_000L) {
             val appCtx = context.applicationContext
+            if (com.example.data.ServerStateManager.isManuallyStopped(appCtx)) return
             val js = appCtx.getSystemService(Context.JOB_SCHEDULER_SERVICE) as? JobScheduler ?: return
             val component = ComponentName(appCtx, KeepAliveJobService::class.java)
             val recoveryJob = JobInfo.Builder(JOB_ID_RECOVERY, component)
@@ -81,6 +98,15 @@ class KeepAliveJobService : JobService() {
                 .setPersisted(true)
                 .build()
             runCatching { js.schedule(recoveryJob) }
+        }
+
+
+        fun cancelAll(context: Context) {
+            val appCtx = context.applicationContext
+            val js = appCtx.getSystemService(Context.JOB_SCHEDULER_SERVICE) as? JobScheduler ?: return
+            listOf(JOB_ID_PERIODIC, JOB_ID_NETWORK, JOB_ID_RECOVERY).forEach { id ->
+                runCatching { js.cancel(id) }
+            }
         }
 
         private fun isJobScheduled(js: JobScheduler, jobId: Int): Boolean {

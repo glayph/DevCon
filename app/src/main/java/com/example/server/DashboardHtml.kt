@@ -2703,7 +2703,7 @@ function refreshAuthInfo() {
     if (!st.authenticated) { window.location.replace(homeUrl()); return; }
     setElText('owner-user-id', st.userId || '--');
     setElText('owner-device-id', st.deviceId || '--');
-    setElText('owner-remote-status', st.relayConnected && st.publicUrl ? st.publicUrl : (st.relayConnected ? 'Connected' : 'Local Only'));
+    setElText('owner-remote-status', st.publicUrl || (st.relayConnected ? 'Connected' : 'Local Only'));
   }).catch(function() {});
 }
 function changePassword(ev) {

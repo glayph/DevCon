@@ -54,6 +54,7 @@ class ExampleRobolectricTest {
     context = ApplicationProvider.getApplicationContext()
     Shadows.shadowOf(context as Application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
     SecureCredentialStore.clearAll(context)
+    ServerStateManager.setManuallyStopped(context, false)
     AuthManager.resetTransientStateForTesting()
     ServerStateManager.setTunnelState(TunnelStatus.DISCONNECTED)
   }
@@ -148,7 +149,7 @@ class ExampleRobolectricTest {
     assertNotNull(apps)
 
     ServerStateManager.setManuallyStopped(context, true)
-    assertFalse(ServerStateManager.isManuallyStopped(context))
+    assertTrue(ServerStateManager.isManuallyStopped(context))
     ServerStateManager.setManuallyStopped(context, false)
     assertFalse(ServerStateManager.isManuallyStopped(context))
   }
@@ -184,10 +185,11 @@ class ExampleRobolectricTest {
     val service = org.robolectric.Robolectric.buildService(com.example.service.RemoteServerService::class.java)
       .create()
       .get()
-    assertNull(nm.getNotificationChannel(com.example.service.RemoteServerService.CHANNEL_ID))
+    // The foreground service must create its low-importance channel before startup.
+    assertNotNull(nm.getNotificationChannel(com.example.service.RemoteServerService.CHANNEL_ID))
     assertTrue(shadowNm.allNotifications.isEmpty())
 
-    // Boot receiver ensures silent runtime without foreground service or notifications
+    // Boot receiver requests the foreground service while keeping the notification silent.
     val freePort = ServerSocket(0).use { it.localPort }
     ServerStateManager.savePort(context, freePort)
     ServerStateManager.setManuallyStopped(context, false)
@@ -195,7 +197,7 @@ class ExampleRobolectricTest {
     receiver.onReceive(context, android.content.Intent(android.content.Intent.ACTION_BOOT_COMPLETED))
 
     assertTrue(ServerStateManager.isServerRunning.value)
-    assertNull(Shadows.shadowOf(context as Application).nextStartedService)
+    assertNotNull(Shadows.shadowOf(context as Application).nextStartedService)
     assertTrue(shadowNm.allNotifications.isEmpty())
 
     // Persisted JobScheduler keeps backend active across reboots
@@ -240,21 +242,25 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify unique device id, honest tunnel URL gating, and anonymous SSH tunnel URL parsing`() {
+  fun `verify stable device URL survives tunnel reconnects and anonymous SSH tunnel URL parsing`() {
     val id1 = AuthManager.getOrCreateDeviceId(context)
     val id2 = AuthManager.getOrCreateDeviceId(context)
     assertTrue(id1.startsWith("pd_"))
     assertEquals(id1, id2)
 
-    // Never expose public URL unless tunnel status is CONNECTED
-    ServerStateManager.setTunnelState(TunnelStatus.CONNECTING, "https://demo123.a.pinggy.link/")
-    assertEquals("", ServerStateManager.publicUrl.value)
+    ServerStateManager.refreshAuthInfo(context)
+    val expectedStableUrl = com.example.server.CloudflareRelayConfig.publicUrl(id1)
+    assertEquals(expectedStableUrl, ServerStateManager.publicUrl.value)
 
-    ServerStateManager.setTunnelState(TunnelStatus.RECONNECTING, "https://demo123.a.pinggy.link/")
-    assertEquals("", ServerStateManager.publicUrl.value)
+    // A tunnel outage changes availability, not the identity-derived public URL.
+    ServerStateManager.setTunnelState(TunnelStatus.CONNECTING)
+    assertEquals(expectedStableUrl, ServerStateManager.publicUrl.value)
 
-    ServerStateManager.setTunnelState(TunnelStatus.CONNECTED, "https://demo123.a.pinggy.link/")
-    assertEquals("https://demo123.a.pinggy.link/", ServerStateManager.publicUrl.value)
+    ServerStateManager.setTunnelState(TunnelStatus.RECONNECTING)
+    assertEquals(expectedStableUrl, ServerStateManager.publicUrl.value)
+
+    ServerStateManager.setTunnelState(TunnelStatus.CONNECTED, expectedStableUrl)
+    assertEquals(expectedStableUrl, ServerStateManager.publicUrl.value)
 
     // Verify anonymous SSH tunnel output parsing (Pinggy + localhost.run, ignoring dashboard/admin URLs)
     assertNull(RemoteTunnelClient.extractPublicHttpsUrl("Dashboard: https://dashboard.pinggy.io"))

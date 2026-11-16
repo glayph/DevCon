@@ -90,23 +90,32 @@ class BootAndWatchdogReceiver : BroadcastReceiver() {
         val shouldStart = when (action) {
             Intent.ACTION_BOOT_COMPLETED,
             Intent.ACTION_LOCKED_BOOT_COMPLETED,
-            Intent.ACTION_USER_UNLOCKED,
             "android.intent.action.QUICKBOOT_POWERON",
             "com.htc.intent.action.QUICKBOOT_POWERON",
-            Intent.ACTION_REBOOT,
             Intent.ACTION_MY_PACKAGE_REPLACED,
             ACTION_WATCHDOG -> true
             else -> false
         }
 
         if (shouldStart) {
+            if (ServerStateManager.isManuallyStopped(appCtx)) {
+                cancelWatchdog(appCtx)
+                KeepAliveJobService.cancelAll(appCtx)
+                return
+            }
             scheduleWatchdog(appCtx)
             KeepAliveJobService.scheduleAll(appCtx)
-            if (!ServerStateManager.isServerRunning.value) {
-                runCatching {
-                    com.example.server.ServerRuntime.ensureRunning(appCtx)
-                    CommandLogRepository.log("SYSTEM", "watchdog", "local", 200, "Always-on backend ensured via $action")
-                }
+
+            // Do not start the backend from an ordinary receiver process. Promote it to
+            // the connectedDevice foreground service so Android can manage its lifetime.
+            // LOCKED_BOOT_COMPLETED runs before encrypted app storage is available; the
+            // normal BOOT_COMPLETED broadcast starts the service after the user unlocks.
+            if (action != Intent.ACTION_LOCKED_BOOT_COMPLETED) {
+                RemoteServerService.startService(appCtx, ServerStateManager.getSavedPort(appCtx))
+                CommandLogRepository.log(
+                    "SYSTEM", "boot_service", "local", 200,
+                    "Foreground server service requested via $action"
+                )
             }
         }
     }

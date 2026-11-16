@@ -11,8 +11,10 @@ import com.example.data.ServerStateManager
 import com.example.service.BootAndWatchdogReceiver
 
 /**
- * Process-scoped server & tunnel runtime optimized for low CPU/RAM/battery footprint:
- * - No permanent 24/7 wakelocks; uses short 25s timed activity leases only during requests.
+ * Process-scoped server & tunnel runtime:
+ * - Holds CPU/Wi-Fi awake while the always-on server is enabled; the user can disable this
+ *   from the wake-lock control when battery conservation is more important than availability.
+ * - Uses a separate short activity lease for remote work when the long-lived lock is disabled.
  * - Strictly enforces OTP-only notifications by canceling any stray non-OTP notifications
  *   and removing legacy foreground-service channels.
  */
@@ -29,6 +31,7 @@ object ServerRuntime {
     private var server: HttpBridgeServer? = null
     private var tunnelClient: CloudflareTunnelClient? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var activityWakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
     private var lastLeaseAtMs: Long = 0L
 
@@ -65,7 +68,7 @@ object ServerRuntime {
         ServerStateManager.savePort(appCtx, port)
         ServerStateManager.refreshAuthInfo(appCtx)
         acquireWakeLocks(appCtx)
-        ServerStateManager.setWakeLockHeld(true)
+        ServerStateManager.setWakeLockHeld(wakeLock?.isHeld == true)
 
         if (server == null || !ServerStateManager.isServerRunning.value) {
             runCatching { server?.stop() }
@@ -104,9 +107,17 @@ object ServerRuntime {
     }
 
     @Synchronized
+    fun reconnectTunnel(context: Context) {
+        ensureRunning(context.applicationContext)
+        tunnelClient?.reconnect()
+    }
+
+    @Synchronized
     fun stop(context: Context) {
         val appCtx = context.applicationContext
+        ServerStateManager.setManuallyStopped(appCtx, true)
         BootAndWatchdogReceiver.cancelWatchdog(appCtx)
+        com.example.service.KeepAliveJobService.cancelAll(appCtx)
         runCatching { tunnelClient?.stop() }
         tunnelClient = null
         runCatching { server?.stop() }
@@ -117,8 +128,8 @@ object ServerRuntime {
     }
 
     /**
-     * Grants a short timed wake lease only while remote commands or transfers are active,
-     * allowing Android Doze/idle sleep when nothing is happening.
+     * Grants a separate short wake lease while a remote command or transfer is active.
+     * This remains useful when the user has disabled the long-lived server wake lock.
      */
     fun pulseActivity(context: Context, durationMs: Long = DEFAULT_ACTIVITY_LEASE_MS) {
         val now = System.currentTimeMillis()
@@ -126,10 +137,10 @@ object ServerRuntime {
         lastLeaseAtMs = now
         val appCtx = context.applicationContext
         runCatching {
-            val wl = wakeLock ?: (appCtx.getSystemService(Context.POWER_SERVICE) as PowerManager)
+            val wl = activityWakeLock ?: (appCtx.getSystemService(Context.POWER_SERVICE) as PowerManager)
                 .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "phonedeck:activity_lease")
                 .apply { setReferenceCounted(false) }
-                .also { wakeLock = it }
+                .also { activityWakeLock = it }
             wl.acquire(durationMs.coerceIn(5_000L, 60_000L))
         }
     }
@@ -142,7 +153,7 @@ object ServerRuntime {
             ServerStateManager.setWakeLockHeld(false)
         } else {
             acquireWakeLocks(appCtx)
-            ServerStateManager.setWakeLockHeld(true)
+            ServerStateManager.setWakeLockHeld(wakeLock?.isHeld == true)
         }
     }
 
@@ -159,7 +170,10 @@ object ServerRuntime {
                 }
             }
             if (wakeLock?.isHeld != true) {
-                wakeLock?.acquire(10 * 60 * 1000L)
+                // The bridge and tunnel are long-lived foreground-service workloads. A timed
+                // acquire silently expires after ten minutes and leaves the UI saying HELD.
+                // Keep the partial lock for the service lifetime; stop() releases it.
+                wakeLock?.acquire()
             }
 
             if (wifiLock == null) {
@@ -185,6 +199,9 @@ object ServerRuntime {
         runCatching {
             if (wakeLock?.isHeld == true) {
                 wakeLock?.release()
+            }
+            if (activityWakeLock?.isHeld == true) {
+                activityWakeLock?.release()
             }
             if (wifiLock?.isHeld == true) {
                 wifiLock?.release()

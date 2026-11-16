@@ -4,6 +4,7 @@ import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import com.example.server.CloudflareRelayConfig
 import java.util.concurrent.atomic.AtomicLong
 
 enum class TunnelStatus {
@@ -59,6 +60,9 @@ object ServerStateManager {
     fun refreshAuthInfo(context: Context) {
         val appCtx = context.applicationContext
         _deviceId.value = AuthManager.getOrCreateDeviceId(appCtx)
+        // Keep the assigned URL visible during temporary network/tunnel outages.
+        // It is based on the stored device ID and does not depend on a live socket.
+        _publicUrl.value = CloudflareRelayConfig.publicUrl(_deviceId.value)
         _isRegistered.value = AuthManager.isRegistered(appCtx)
         _registeredUserId.value = AuthManager.getRegisteredUserId(appCtx)
     }
@@ -69,8 +73,9 @@ object ServerStateManager {
         error: String = ""
     ) {
         _tunnelStatus.value = status
-        // Never expose a public URL unless the tunnel is actually connected
-        _publicUrl.value = if (status == TunnelStatus.CONNECTED) publicUrl else ""
+        // The public address is an identity-derived endpoint. Preserve it while the
+        // Android host reconnects; only the endpoint's availability changes.
+        if (publicUrl.isNotBlank()) _publicUrl.value = publicUrl
         _tunnelError.value = error
     }
 
@@ -85,18 +90,22 @@ object ServerStateManager {
         }
     }
 
-    fun setManuallyStopped(context: Context, @Suppress("UNUSED_PARAMETER") stopped: Boolean) {
+    fun setManuallyStopped(context: Context, stopped: Boolean) {
         runCatching {
             context.applicationContext
                 .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
-                .putBoolean(KEY_MANUALLY_STOPPED, false)
+                .putBoolean(KEY_MANUALLY_STOPPED, stopped)
                 .apply()
         }
     }
 
     fun isManuallyStopped(context: Context): Boolean {
-        return false
+        return runCatching {
+            context.applicationContext
+                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getBoolean(KEY_MANUALLY_STOPPED, false)
+        }.getOrDefault(false)
     }
 
     fun savePort(context: Context, port: Int) {

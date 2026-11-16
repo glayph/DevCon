@@ -1,7 +1,6 @@
 package com.example
 
 import android.app.Application
-import android.os.Build
 import android.os.Looper
 import com.example.data.CommandLogRepository
 import com.example.service.BootAndWatchdogReceiver
@@ -20,8 +19,11 @@ class PhoneDeckApplication : Application() {
         startupScope.launch {
             runCatching {
                 com.example.server.ServerRuntime.cleanupNonOtpNotifications(applicationContext)
-                if (!Build.FINGERPRINT.equals("robolectric", ignoreCase = true)) {
-                    com.example.server.ServerRuntime.ensureRunning(applicationContext)
+                // Application.onCreate can run for receivers and background services too.
+                // Do not start a long-lived socket here: only RemoteServerService owns the
+                // backend lifecycle. The visible Activity, boot receiver, or watchdog asks
+                // that foreground service to start when Android permits it.
+                if (!com.example.data.ServerStateManager.isManuallyStopped(applicationContext)) {
                     KeepAliveJobService.scheduleAll(applicationContext)
                 }
             }

@@ -602,7 +602,9 @@ private fun RemoteAccessCard(
                 )
             }
 
-            if (isServerRunning && tunnelStatus == TunnelStatus.CONNECTED && publicUrl.isNotBlank()) {
+            // The URL belongs to the persistent device identity, not to the current
+            // WebSocket session. Keep showing/copying it while the phone reconnects.
+            if (publicUrl.isNotBlank()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -653,11 +655,15 @@ private fun RemoteAccessCard(
                         }
                     }
                 }
-            } else {
+            }
+
+            if (!isServerRunning || tunnelStatus != TunnelStatus.CONNECTED) {
                 val statusText = when {
-                    !isServerRunning -> "Server offline"
+                    !isServerRunning -> "Public URL is reserved; the phone server is offline"
                     tunnelError.isNotBlank() -> tunnelError
-                    else -> "Localhost & LAN active (Tunnel on standby)"
+                    tunnelStatus == TunnelStatus.CONNECTING -> "Connecting to the public relay"
+                    tunnelStatus == TunnelStatus.RECONNECTING -> "Connection interrupted; URL unchanged, reconnecting"
+                    else -> "Localhost & LAN active (Public relay on standby)"
                 }
                 Row(
                     modifier = Modifier

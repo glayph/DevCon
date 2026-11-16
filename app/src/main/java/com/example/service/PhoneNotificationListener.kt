@@ -12,7 +12,10 @@ class PhoneNotificationListener : NotificationListenerService() {
 
     override fun onListenerConnected() {
         super.onListenerConnected()
-        com.example.server.ServerRuntime.ensureRunning(applicationContext)
+        RemoteServerService.startService(
+            applicationContext,
+            com.example.data.ServerStateManager.getSavedPort(applicationContext)
+        )
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {

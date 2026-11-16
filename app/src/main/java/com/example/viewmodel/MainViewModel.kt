@@ -7,7 +7,6 @@ import com.example.controller.PermissionHelper
 import com.example.data.ServerStateManager
 import com.example.data.TunnelStatus
 import com.example.model.PermissionItemState
-import com.example.server.ServerRuntime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,7 +44,10 @@ class MainViewModel : ViewModel() {
 
     fun reconnectTunnel(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
-            com.example.service.RemoteServerService.startService(context.applicationContext, serverPort.value)
+            com.example.service.RemoteServerService.reconnectTunnel(
+                context.applicationContext,
+                serverPort.value
+            )
         }
     }
 }

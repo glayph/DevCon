@@ -1,5 +1,5 @@
 /**
- * PhoneDeck Stateless WebSocket Relay (Cloudflare Workers + Durable Objects)
+ * PhoneDeck Device WebSocket Relay (Cloudflare Workers + Durable Objects)
  *
  * Security & Hosting Model:
  * - Android remains the authoritative HTTP server, auth verifier, and dashboard host.
@@ -56,20 +56,36 @@ export class DeviceTunnelDO {
     this.deviceSocket = null;
     this.pending = new Map();
     this.streams = new Map();
+
+    // Hibernatable WebSockets survive Durable Object eviction. Rebuild the in-memory
+    // pointer whenever the DO wakes instead of assuming its constructor only runs once.
+    const openSockets = this.state.getWebSockets()
+      .filter((ws) => ws.readyState === WebSocket.OPEN)
+      .sort((a, b) => {
+        const aConnectedAt = a.deserializeAttachment()?.connectedAt || 0;
+        const bConnectedAt = b.deserializeAttachment()?.connectedAt || 0;
+        return aConnectedAt - bConnectedAt;
+      });
+
+    this.deviceSocket = openSockets.length ? openSockets[openSockets.length - 1] : null;
+    for (const staleSocket of openSockets.slice(0, -1)) {
+      try { staleSocket.close(4001, "Superseded device connection"); } catch (_) {}
+    }
   }
 
   async fetch(request) {
     const url = new URL(request.url);
 
-    // Handle Android Device WebSocket Connection
+    // Handle the Android device's outbound WebSocket connection.
     if (url.pathname === "/ws/device") {
-      if (request.headers.get("Upgrade") !== "websocket") {
+      if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
         return new Response("Expected WebSocket Upgrade", { status: 426 });
       }
+
       const deviceId = (url.searchParams.get("deviceId") || request.headers.get("X-Device-Id") || "").trim();
       const deviceSecret = (request.headers.get("X-Device-Secret") || "").trim();
-      if (!deviceId || deviceSecret.length < 32) {
-        return new Response("Missing device credentials", { status: 401 });
+      if (!/^pd_[a-f0-9]{12,40}$/i.test(deviceId) || deviceSecret.length < 32) {
+        return new Response("Missing or invalid device credentials", { status: 401 });
       }
 
       const providedHash = await sha256Hex(deviceSecret);
@@ -81,41 +97,40 @@ export class DeviceTunnelDO {
         await this.state.storage.put("secret_hash", providedHash);
       }
 
+      // A device ID may have only one active tunnel. Close an old session before
+      // accepting its replacement (for example, after Wi-Fi/mobile-data handover).
+      this.failAllPending("Device tunnel replaced by a newer session");
+      for (const existing of this.state.getWebSockets()) {
+        if (existing.readyState === WebSocket.OPEN) {
+          try { existing.close(4001, "Replaced by newer device session"); } catch (_) {}
+        }
+      }
+
       const pair = new WebSocketPair();
       const client = pair[0];
       const server = pair[1];
-      server.accept();
+      this.state.acceptWebSocket(server);
+      server.serializeAttachment({
+        role: "device",
+        deviceId,
+        publicOrigin: url.origin,
+        connectedAt: Date.now()
+      });
 
-      if (this.deviceSocket) {
-        try {
-          this.deviceSocket.close(1000, "Replaced by newer device session");
-        } catch (_) {}
-      }
       this.deviceSocket = server;
       const publicUrl = `${url.origin}/d/${deviceId}/`;
 
-      server.addEventListener("message", (event) => {
-        this.onDeviceMessage(server, event.data, publicUrl);
-      });
-      server.addEventListener("close", () => {
-        if (this.deviceSocket === server) {
-          this.deviceSocket = null;
-          this.failAllPending("Device disconnected");
-        }
-      });
-      server.addEventListener("error", () => {
-        if (this.deviceSocket === server) {
-          this.deviceSocket = null;
-          this.failAllPending("Tunnel socket error");
-        }
-      });
-
-      // Immediately acknowledge tunnel readiness
+      // Immediate acknowledgement lets the Android app show ONLINE only after the
+      // Worker has actually accepted and registered its device tunnel.
       server.send(JSON.stringify({ type: "tunnel_ready", deviceId, publicUrl }));
       return new Response(null, { status: 101, webSocket: client });
     }
 
-    // Handle Incoming Desktop HTTPS Request -> Forward to Android Device
+    // Browser HTTPS request -> forward to the Android device.
+    if (!this.deviceSocket || this.deviceSocket.readyState !== WebSocket.OPEN) {
+      this.deviceSocket = this.state.getWebSockets()
+        .find((ws) => ws.readyState === WebSocket.OPEN) || null;
+    }
     if (!this.deviceSocket) {
       return new Response(offlineHtml(), {
         status: 503,
@@ -138,9 +153,7 @@ export class DeviceTunnelDO {
     let bodyBase64 = "";
     if (request.method !== "GET" && request.method !== "HEAD") {
       const buf = await request.arrayBuffer();
-      if (buf.byteLength > 0) {
-        bodyBase64 = arrayBufferToBase64(buf);
-      }
+      if (buf.byteLength > 0) bodyBase64 = arrayBufferToBase64(buf);
     }
 
     return new Promise((resolve) => {
@@ -163,12 +176,39 @@ export class DeviceTunnelDO {
           headers: headersObj,
           bodyBase64
         }));
-      } catch (err) {
+      } catch (_) {
         clearTimeout(timeout);
         this.pending.delete(reqId);
         resolve(new Response("Tunnel write failed", { status: 502 }));
       }
     });
+  }
+
+  // Hibernatable WebSocket event handlers. Attachments restore the device identity
+  // after a Durable Object wakes from an idle period.
+  webSocketMessage(ws, raw) {
+    const attachment = ws.deserializeAttachment() || {};
+    const publicUrl = attachment.deviceId && attachment.publicOrigin
+      ? `${attachment.publicOrigin}/d/${attachment.deviceId}/`
+      : "";
+    this.onDeviceMessage(ws, raw, publicUrl);
+  }
+
+  webSocketClose(ws, code, reason) {
+    if (this.deviceSocket === ws) {
+      this.deviceSocket = null;
+      this.failAllPending("Device disconnected");
+    }
+    // Required for older compatibility dates; safe when the runtime auto-replies.
+    try { ws.close(code, reason); } catch (_) {}
+  }
+
+  webSocketError(ws, error) {
+    if (this.deviceSocket === ws) {
+      this.deviceSocket = null;
+      this.failAllPending("Tunnel socket error");
+    }
+    try { ws.close(1011, "Tunnel socket error"); } catch (_) {}
   }
 
   onDeviceMessage(ws, raw, publicUrl) {
@@ -180,7 +220,7 @@ export class DeviceTunnelDO {
     }
 
     if (msg.type === "device_hello") {
-      ws.send(JSON.stringify({ type: "tunnel_ready", publicUrl }));
+      if (publicUrl) ws.send(JSON.stringify({ type: "tunnel_ready", publicUrl }));
       return;
     }
 
@@ -213,7 +253,7 @@ export class DeviceTunnelDO {
         cancel: () => {
           this.streams.delete(reqId);
           try {
-            if (this.deviceSocket) {
+            if (this.deviceSocket?.readyState === WebSocket.OPEN) {
               this.deviceSocket.send(JSON.stringify({ type: "http_cancel", id: reqId }));
             }
           } catch (_) {}

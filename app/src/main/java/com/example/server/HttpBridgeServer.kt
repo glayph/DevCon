@@ -186,7 +186,12 @@ class HttpBridgeServer(
                         put("relayConnected", tunnelConnected)
                         if (isAuthenticated && registered) {
                             put("userId", AuthManager.getRegisteredUserId(context))
-                            put("publicUrl", if (tunnelConnected) ServerStateManager.publicUrl.value else "")
+                            put(
+                                "publicUrl",
+                                ServerStateManager.publicUrl.value.ifBlank {
+                                    CloudflareRelayConfig.publicUrl(deviceId)
+                                }
+                            )
                         }
                     }
                     sendJson(output, json.toString(), mapOf("Cache-Control" to "no-store"))

@@ -16,6 +16,7 @@ import com.example.MainActivity
 import com.example.R
 import com.example.controller.DeviceController
 import com.example.controller.ScreenCastManager
+import com.example.data.CommandLogRepository
 import com.example.data.ServerStateManager
 import com.example.server.ServerRuntime
 
@@ -27,6 +28,7 @@ class RemoteServerService : Service() {
 
     companion object {
         const val ACTION_START = "com.example.service.ACTION_START"
+        const val ACTION_RECONNECT = "com.example.service.ACTION_RECONNECT"
         const val ACTION_STOP = "com.example.service.ACTION_STOP"
         const val ACTION_TOGGLE_WAKELOCK = "com.example.service.ACTION_TOGGLE_WAKELOCK"
         const val ACTION_START_CAST = "com.example.service.ACTION_START_CAST"
@@ -39,12 +41,35 @@ class RemoteServerService : Service() {
 
         fun startService(context: Context, port: Int = 8080) {
             val appCtx = context.applicationContext
-            ServerRuntime.start(appCtx, port)
-            KeepAliveJobService.scheduleAll(appCtx)
-            BootAndWatchdogReceiver.scheduleWatchdog(appCtx)
-
+            // A foreground start is a user-visible opt-in to keep the server enabled.
+            ServerStateManager.setManuallyStopped(appCtx, false)
             val intent = Intent(appCtx, RemoteServerService::class.java).apply {
                 action = ACTION_START
+                putExtra(EXTRA_PORT, port)
+            }
+            try {
+                // Let the service own startup. Starting the backend before promoting the
+                // service leaves a window where Android can kill an ordinary background process.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    appCtx.startForegroundService(intent)
+                } else {
+                    appCtx.startService(intent)
+                }
+                KeepAliveJobService.scheduleAll(appCtx)
+                BootAndWatchdogReceiver.scheduleWatchdog(appCtx)
+            } catch (e: Exception) {
+                CommandLogRepository.log(
+                    "WARN", "foreground_service", "local", 0,
+                    "Could not start remote server foreground service: ${e.message}"
+                )
+            }
+        }
+
+        fun reconnectTunnel(context: Context, port: Int = 8080) {
+            val appCtx = context.applicationContext
+            ServerStateManager.setManuallyStopped(appCtx, false)
+            val intent = Intent(appCtx, RemoteServerService::class.java).apply {
+                action = ACTION_RECONNECT
                 putExtra(EXTRA_PORT, port)
             }
             try {
@@ -53,8 +78,11 @@ class RemoteServerService : Service() {
                 } else {
                     appCtx.startService(intent)
                 }
-            } catch (_: Exception) {
-                // If system restrictions prevent foreground service launch directly, ServerRuntime is already running
+            } catch (e: Exception) {
+                CommandLogRepository.log(
+                    "WARN", "foreground_service", "local", 0,
+                    "Could not request tunnel reconnect: ${e.message}"
+                )
             }
         }
 
@@ -101,38 +129,65 @@ class RemoteServerService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val port = intent?.getIntExtra(EXTRA_PORT, ServerStateManager.getSavedPort(applicationContext))
             ?: ServerStateManager.getSavedPort(applicationContext)
+        val action = intent?.action
 
-        when (intent?.action) {
-            ACTION_STOP -> {
-                ServerRuntime.stop(applicationContext)
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-                return START_NOT_STICKY
-            }
+        if (action == ACTION_STOP) {
+            ServerRuntime.stop(applicationContext)
+            KeepAliveJobService.cancelAll(applicationContext)
+            BootAndWatchdogReceiver.cancelWatchdog(applicationContext)
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelfResult(startId)
+            return START_NOT_STICKY
+        }
+
+        // Promote immediately. Android requires a service started with
+        // startForegroundService() to call startForeground() within five seconds.
+        // Starting sockets or waiting on the relay must happen only after this call.
+        val castResultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
+            ?: Activity.RESULT_CANCELED
+        val castResultData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent?.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent?.getParcelableExtra(EXTRA_RESULT_DATA)
+        }
+        val projectionRequested = ScreenCastManager.isCasting.value ||
+            (action == ACTION_START_CAST && castResultCode == Activity.RESULT_OK && castResultData != null)
+        try {
+            promoteForeground(port, isCasting = projectionRequested)
+        } catch (e: Exception) {
+            CommandLogRepository.log(
+                "ERROR", "foreground_service", "local", 0,
+                "Android refused to promote PhoneDeck to foreground service: ${e.message}"
+            )
+            stopSelfResult(startId)
+            return START_NOT_STICKY
+        }
+
+        when (action) {
             ACTION_TOGGLE_WAKELOCK -> {
                 ServerRuntime.toggleWakeLocks(applicationContext)
                 updateNotification(port, ScreenCastManager.isCasting.value)
             }
+            ACTION_RECONNECT -> {
+                ServerRuntime.start(applicationContext, port)
+                ServerRuntime.reconnectTunnel(applicationContext)
+                updateNotification(port, ScreenCastManager.isCasting.value)
+            }
             ACTION_START_CAST -> {
-                val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
-                val resultData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    intent.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intent.getParcelableExtra(EXTRA_RESULT_DATA)
+                if (castResultCode == Activity.RESULT_OK && castResultData != null) {
+                    ScreenCastManager.startCast(applicationContext, castResultCode, castResultData)
                 }
-                if (resultCode == Activity.RESULT_OK && resultData != null) {
-                    ScreenCastManager.startCast(applicationContext, resultCode, resultData)
-                }
-                promoteForeground(port, isCasting = true)
+                updateNotification(port, ScreenCastManager.isCasting.value)
             }
             ACTION_STOP_CAST -> {
                 ScreenCastManager.stopCast()
                 promoteForeground(port, isCasting = false)
+                updateNotification(port, isCasting = false)
             }
             else -> {
                 ServerRuntime.start(applicationContext, port)
-                promoteForeground(port, isCasting = ScreenCastManager.isCasting.value)
+                updateNotification(port, ScreenCastManager.isCasting.value)
             }
         }
         return START_STICKY
@@ -152,8 +207,10 @@ class RemoteServerService : Service() {
             } else {
                 startForeground(NOTIFICATION_ID, notif)
             }
-        } catch (_: Exception) {
-            runCatching { startForeground(NOTIFICATION_ID, notif) }
+        } catch (e: Exception) {
+            // Do not silently fall back to a foreground type that was not declared or
+            // whose permission/policy checks failed. The caller records the failure.
+            throw e
         }
     }
 
@@ -212,13 +269,17 @@ class RemoteServerService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        BootAndWatchdogReceiver.scheduleRestart(applicationContext, 500L)
-        KeepAliveJobService.scheduleRecovery(applicationContext, 1000L)
+        if (!ServerStateManager.isManuallyStopped(applicationContext)) {
+            BootAndWatchdogReceiver.scheduleRestart(applicationContext, 500L)
+            KeepAliveJobService.scheduleRecovery(applicationContext, 1000L)
+        }
     }
 
     override fun onDestroy() {
-        BootAndWatchdogReceiver.scheduleRestart(applicationContext, 1000L)
-        KeepAliveJobService.scheduleRecovery(applicationContext, 1500L)
+        if (!ServerStateManager.isManuallyStopped(applicationContext)) {
+            BootAndWatchdogReceiver.scheduleRestart(applicationContext, 1000L)
+            KeepAliveJobService.scheduleRecovery(applicationContext, 1500L)
+        }
         super.onDestroy()
     }
 
