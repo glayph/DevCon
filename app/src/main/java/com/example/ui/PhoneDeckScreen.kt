@@ -105,9 +105,9 @@ fun PhoneDeckScreen(
     }
 
     val ungrantedPermissions = permissionStates.filter { !it.isGranted }
-    val localhostUrl = "http://localhost:$port"
-    val lanUrl = "http://$ip:$port"
-    val adbForwardCmd = "adb forward tcp:$port tcp:$port"
+    val localhostUrl = remember(port) { "http://localhost:$port" }
+    val lanUrl = remember(ip, port) { "http://$ip:$port" }
+    val adbForwardCmd = remember(port) { "adb forward tcp:$port tcp:$port" }
 
     Scaffold(
         topBar = {
@@ -115,7 +115,7 @@ fun PhoneDeckScreen(
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Box(
                             modifier = Modifier
@@ -123,21 +123,13 @@ fun PhoneDeckScreen(
                                 .clip(CircleShape)
                                 .background(if (isRunning) DashEmerald else DashRose)
                         )
-                        Column {
-                            Text(
-                                "PhoneDeck",
-                                style = MaterialTheme.typography.titleLarge.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = DashInk
-                                )
+                        Text(
+                            "PhoneDeck",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = DashInk
                             )
-                            Text(
-                                text = "24/7 Background Service Active",
-                                fontSize = 11.sp,
-                                color = DashEmerald,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
+                        )
                     }
                 },
                 actions = {
@@ -145,12 +137,12 @@ fun PhoneDeckScreen(
                         shape = RoundedCornerShape(999.dp),
                         color = DashSubtle,
                         border = BorderStroke(1.dp, DashBorder),
-                        modifier = Modifier
-                            .padding(end = 12.dp)
+                            modifier = Modifier
+                                .padding(end = 8.dp)
                             .testTag("always_active_badge")
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
@@ -188,8 +180,8 @@ fun PhoneDeckScreen(
                 modifier = Modifier
                     .widthIn(max = 600.dp)
                     .fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Localhost & LAN Dashboard Card (PRIMARY)
                 item(key = "localhost_card") {
@@ -330,8 +322,8 @@ private fun LocalhostCard(
         border = BorderStroke(1.dp, DashBorder)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -343,24 +335,12 @@ private fun LocalhostCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        "DESKTOP & LOCALHOST",
+                        "LOCAL",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.8.sp,
                         color = DashInkMuted
                     )
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = DashEmerald.copy(alpha = 0.12f)
-                    ) {
-                        Text(
-                            "24/7 BACKEND",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = DashEmerald,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
                 }
                 Text(
                     if (isRunning) "ONLINE" else "OFFLINE",
@@ -444,7 +424,7 @@ private fun LocalhostCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "Open In-App Web Console",
+                        "Console",
                     fontSize = 13.5.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = PureWhite
@@ -463,7 +443,7 @@ private fun LocalhostCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "Desktop ADB Forward Command (Run in PC Terminal)",
+                        "ADB forward",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = DashInkMuted
@@ -502,7 +482,7 @@ private fun LocalhostCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "Wi-Fi LAN URL (For PCs on Same Network)",
+                        "LAN URL",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = DashInkMuted
@@ -563,8 +543,8 @@ private fun RemoteAccessCard(
         border = BorderStroke(1.dp, DashBorder)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -576,7 +556,7 @@ private fun RemoteAccessCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        "PUBLIC TUNNEL",
+                        "REMOTE",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.8.sp,
@@ -659,11 +639,11 @@ private fun RemoteAccessCard(
 
             if (!isServerRunning || tunnelStatus != TunnelStatus.CONNECTED) {
                 val statusText = when {
-                    !isServerRunning -> "Public URL is reserved; the phone server is offline"
+                    !isServerRunning -> "Server offline"
                     tunnelError.isNotBlank() -> tunnelError
-                    tunnelStatus == TunnelStatus.CONNECTING -> "Connecting to the public relay"
-                    tunnelStatus == TunnelStatus.RECONNECTING -> "Connection interrupted; URL unchanged, reconnecting"
-                    else -> "Localhost & LAN active (Public relay on standby)"
+                    tunnelStatus == TunnelStatus.CONNECTING -> "Connecting…"
+                    tunnelStatus == TunnelStatus.RECONNECTING -> "Reconnecting…"
+                    else -> "Standby"
                 }
                 Row(
                     modifier = Modifier
@@ -755,7 +735,7 @@ private fun PermissionActionCard(
                 modifier = Modifier.testTag(testTag)
             ) {
                 Text(
-                    text = "Grant",
+                    text = "Allow",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
                 )
