@@ -1,0 +1,6 @@
+{
+  "name": "PhoneDeck",
+  "description": "Android-hosted remote device console with a secure HTTPS tunnel, desktop SMS-OTP registration, device-bound authentication, screen cast, files, shell, and MCP control.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

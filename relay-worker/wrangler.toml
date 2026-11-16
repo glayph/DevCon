@@ -1,0 +1,11 @@
+name = "phonedeck-relay"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[[durable_objects.bindings]]
+name = "PHONEDECK_TUNNEL"
+class_name = "DeviceTunnelDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DeviceTunnelDO"]
