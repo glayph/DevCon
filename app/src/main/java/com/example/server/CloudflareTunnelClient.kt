@@ -40,8 +40,8 @@ class CloudflareTunnelClient(
         .readTimeout(45, TimeUnit.SECONDS)
         .writeTimeout(45, TimeUnit.SECONDS)
         .build()
-    private val workerOrigin = "https://phonedeck-relay.glayph-phonedeck.workers.dev"
-    private val workerSocketUrl = "wss://phonedeck-relay.glayph-phonedeck.workers.dev/ws/device"
+    private val workerOrigin = "https://glayph.phonedeck.workers.dev"
+    private val workerSocketUrl = "wss://glayph.phonedeck.workers.dev/ws/device"
 
     @Volatile private var started = false
     @Volatile private var socket: WebSocket? = null

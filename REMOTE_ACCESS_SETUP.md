@@ -5,7 +5,7 @@
 The Android device runs the PhoneDeck HTTP bridge locally on port `8080`. When PhoneDeck is enabled, the app opens an outbound secure WebSocket connection to the deployed Cloudflare Worker:
 
 ```text
-wss://phonedeck-relay.glayph-phonedeck.workers.dev/ws/device
+wss://glayph.phonedeck.workers.dev/ws/device
 ```
 
 The Worker uses the device ID to route browser requests to the correct device through an isolated Durable Object.
@@ -15,9 +15,9 @@ The Android device remains the authoritative host for the dashboard, authenticat
 ## Cloudflare configuration
 
 - Account ID: `09bb87bf827bd3bcc5097dd2eaa80aeb`
-- Workers subdomain: `glayph-phonedeck.workers.dev`
-- Worker name: `phonedeck-relay`
-- Health endpoint: `https://phonedeck-relay.glayph-phonedeck.workers.dev/health`
+- Workers subdomain: `phonedeck.workers.dev`
+- Worker name: `glayph`
+- Health endpoint: `https://glayph.phonedeck.workers.dev/health`
 - Durable Object binding: `PHONEDECK_TUNNEL`
 
 The relay source and Durable Object configuration are in [`relay-worker/`](relay-worker/). API tokens are deployment credentials only. They must not be stored in source code, the APK, or this documentation.
@@ -33,13 +33,13 @@ pd_<hex-id>
 The Android app stores the device ID and tunnel secret in encrypted Android secure storage. Once connected, the dashboard URL is:
 
 ```text
-https://phonedeck-relay.glayph-phonedeck.workers.dev/d/<device-id>/
+https://glayph.phonedeck.workers.dev/d/<device-id>/
 ```
 
 For example:
 
 ```text
-https://phonedeck-relay.glayph-phonedeck.workers.dev/d/pd_a1b2c3d4e5/
+https://glayph.phonedeck.workers.dev/d/pd_a1b2c3d4e5/
 ```
 
 The URL remains the same after app restarts, tunnel reconnects, and Wi-Fi/mobile-data changes. It changes when Android app data is cleared or the app is uninstalled and reinstalled, because the app then generates a new device identity.

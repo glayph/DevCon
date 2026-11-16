@@ -8,7 +8,7 @@ PhoneDeck turns an Android device into a remotely accessible control dashboard. 
 - Stable Cloudflare relay URLs in the form:
 
   ```text
-  https://phonedeck-relay.glayph-phonedeck.workers.dev/d/<device-id>/
+  https://glayph.phonedeck.workers.dev/d/<device-id>/
   ```
 
 - Per-device identity and tunnel secret stored in Android secure storage.
@@ -58,7 +58,7 @@ app/build/outputs/apk/release/app-release.apk
 
 ## Cloudflare Worker
 
-The relay Worker source is in [`relay-worker/`](relay-worker/). The deployed Worker uses the Cloudflare Workers subdomain `glayph-phonedeck.workers.dev` and the Worker name `phonedeck-relay`.
+The relay Worker source is in [`relay-worker/`](relay-worker/). The deployed Worker uses the Cloudflare Workers subdomain `phonedeck.workers.dev` and the Worker name `glayph`.
 
 The Worker requires a Durable Object binding named `PHONEDECK_TUNNEL`. Deploy it with Wrangler after authenticating in your own browser:
 
@@ -75,7 +75,7 @@ The API token used for deployment must never be placed in this repository or ins
 After the app connects to the relay, its dashboard URL is:
 
 ```text
-https://phonedeck-relay.glayph-phonedeck.workers.dev/d/<device-id>/
+https://glayph.phonedeck.workers.dev/d/<device-id>/
 ```
 
 The URL remains stable across app restarts, reconnects, and Wi-Fi/mobile-data changes. It changes if Android app data is cleared or the app is uninstalled and reinstalled, because a new device identity is generated.
