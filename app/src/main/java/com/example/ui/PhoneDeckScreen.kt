@@ -63,6 +63,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.controller.PermissionHelper
+import com.example.data.LauncherVisibilityManager
 import com.example.data.TunnelStatus
 import com.example.model.PermissionItemState
 import com.example.ui.theme.DashAccent
@@ -98,6 +99,9 @@ fun PhoneDeckScreen(
     val registeredUserId by viewModel.registeredUserId.collectAsStateWithLifecycle()
 
     var showInAppConsole by remember { mutableStateOf(false) }
+    var launcherVisible by remember {
+        mutableStateOf(LauncherVisibilityManager.isVisible(context))
+    }
 
     LaunchedEffect(Unit) {
         viewModel.ensureServiceActive(context)
@@ -133,6 +137,33 @@ fun PhoneDeckScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = {
+                            val visible = LauncherVisibilityManager.toggle(context)
+                            launcherVisible = visible
+                            Toast.makeText(
+                                context,
+                                if (visible) "Launcher icon shown" else "Launcher icon hidden",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        },
+                        modifier = Modifier.testTag("launcher_visibility_toggle")
+                    ) {
+                        Icon(
+                            imageVector = if (launcherVisible) {
+                                PhoneDeckIcons.VisibilityOff
+                            } else {
+                                PhoneDeckIcons.Visibility
+                            },
+                            contentDescription = if (launcherVisible) {
+                                "Hide launcher icon"
+                            } else {
+                                "Show launcher icon"
+                            },
+                            tint = DashInkSecondary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                     Surface(
                         shape = RoundedCornerShape(999.dp),
                         color = DashSubtle,

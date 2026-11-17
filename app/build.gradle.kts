@@ -16,8 +16,8 @@ android {
     applicationId = "com.aistudio.phonedeck.ctrl"
     minSdk = 24
     targetSdk = 36
-    versionCode = 6
-    versionName = "1.0.6"
+    versionCode = 7
+    versionName = "1.0.7"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     resourceConfigurations.addAll(listOf("en", "bn"))
