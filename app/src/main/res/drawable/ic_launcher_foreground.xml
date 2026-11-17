@@ -1,8 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item
-        android:width="66dp"
-        android:height="66dp"
-        android:drawable="@drawable/phonedeck_launcher_icon_1794670836710"
-        android:gravity="center" />
-</layer-list>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Simple phone silhouette with a clean screen and home indicator. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M34,14h40c6.63,0 12,5.37 12,12v56c0,6.63 -5.37,12 -12,12H34c-6.63,0 -12,-5.37 -12,-12V26c0,-6.63 5.37,-12 12,-12z" />
+    <path
+        android:fillColor="#0D1117"
+        android:pathData="M32,27h44v48H32z" />
+    <path
+        android:fillColor="#0D1117"
+        android:pathData="M51,20h6a2,2 0,1 0,0 4h-6a2,2 0,1 0,0 -4z" />
+    <path
+        android:fillColor="#0D1117"
+        android:pathData="M49,82h10a2,2 0,1 0,0 -4H49a2,2 0,1 0,0 4z" />
+</vector>
