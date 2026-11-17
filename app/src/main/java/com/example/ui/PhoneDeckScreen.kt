@@ -100,11 +100,14 @@ fun PhoneDeckScreen(
     var showInAppConsole by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        viewModel.ensureServiceActive(context)
         viewModel.refreshPermissions(context)
     }
 
-    val ungrantedPermissions = permissionStates.filter { !it.isGranted }
+    val ungrantedPermissions = remember(permissionStates) {
+        permissionStates
+            .filter { !it.isGranted }
+            .map { it to iconForPermission(it.id) }
+    }
     val localhostUrl = remember(port) { "http://localhost:$port" }
     val lanUrl = remember(ip, port) { "http://$ip:$port" }
     val adbForwardCmd = remember(port) { "adb forward tcp:$port tcp:$port" }
@@ -226,9 +229,13 @@ fun PhoneDeckScreen(
                     item(key = "permissions_spacer") {
                         Spacer(modifier = Modifier.height(2.dp))
                     }
-                    items(ungrantedPermissions, key = { it.id }) { item ->
+                    items(
+                        items = ungrantedPermissions,
+                        key = { it.first.id },
+                        contentType = { "permission" }
+                    ) { (item, icon) ->
                         PermissionActionCard(
-                            icon = iconForPermission(item.id),
+                            icon = icon,
                             title = item.title,
                             testTag = "perm_${item.id}_btn",
                             onClick = { onRequestPermissionItem(item) }
