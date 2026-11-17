@@ -129,6 +129,23 @@
             </intent-filter>
         </activity-alias>
 
+        <!--
+            Settings uses the INFO launch intent as a fallback when the launcher
+            alias is hidden. This alias has no LAUNCHER category, so it never
+            appears on the Home screen or in the app drawer.
+        -->
+        <activity-alias
+            android:name=".MainActivitySettings"
+            android:enabled="true"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.INFO" />
+            </intent-filter>
+        </activity-alias>
+
         <activity
             android:name=".service.ScreenCastPermissionActivity"
             android:exported="false"
