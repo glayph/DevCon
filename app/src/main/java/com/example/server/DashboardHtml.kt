@@ -41,6 +41,13 @@ object DashboardHtml {
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+html {
+  min-width: 320px;
+  background: var(--bg-page);
+  color-scheme: light;
+  scroll-behavior: smooth;
+}
+
 body {
   background: var(--bg-page);
   color: var(--text-primary);
@@ -50,7 +57,19 @@ body {
   min-height: 100vh;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
 }
+
+button, input, select, textarea { font: inherit; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.28);
+  outline-offset: 2px;
+}
+::selection { background: #bfdbfe; color: #0f172a; }
+::placeholder { color: var(--text-muted); opacity: 1; }
+img, svg { max-width: 100%; }
 
 .mono { font-family: var(--font-mono); font-size: 12px; }
 svg.ic { width: 15px; height: 15px; flex-shrink: 0; display: inline-block; vertical-align: middle; }
@@ -129,7 +148,11 @@ svg.ic-sm { width: 13px; height: 13px; flex-shrink: 0; display: inline-block; ve
   flex: 1;
   overflow-y: auto;
   padding: 10px 10px 16px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
 }
+.sidebar-scroll::-webkit-scrollbar, .table-wrap::-webkit-scrollbar, .modal-body::-webkit-scrollbar { width: 8px; height: 8px; }
+.sidebar-scroll::-webkit-scrollbar-thumb, .table-wrap::-webkit-scrollbar-thumb, .modal-body::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
 
 .nav-group {
   margin-bottom: 14px;
@@ -203,6 +226,7 @@ svg.ic-sm { width: 13px; height: 13px; flex-shrink: 0; display: inline-block; ve
   min-width: 0;
   display: flex;
   flex-direction: column;
+  min-height: 100vh;
 }
 
 .topbar {
@@ -218,6 +242,7 @@ svg.ic-sm { width: 13px; height: 13px; flex-shrink: 0; display: inline-block; ve
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
 }
 
 .topbar-left {
@@ -286,9 +311,10 @@ svg.ic-sm { width: 13px; height: 13px; flex-shrink: 0; display: inline-block; ve
   width: 100%;
   margin: 0 auto;
   padding: 18px 20px 36px;
+  min-width: 0;
 }
 
-.page { display: none; animation: fadeIn 0.12s ease; }
+.page { display: none; min-width: 0; animation: fadeIn 0.12s ease; }
 .page.active { display: block; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -305,6 +331,7 @@ svg.ic-sm { width: 13px; height: 13px; flex-shrink: 0; display: inline-block; ve
   padding: 16px;
   box-shadow: var(--shadow-sm);
   margin-bottom: 14px;
+  min-width: 0;
 }
 .card:last-child { margin-bottom: 0; }
 .card-hd {
@@ -357,7 +384,9 @@ svg.ic-sm { width: 13px; height: 13px; flex-shrink: 0; display: inline-block; ve
   text-decoration: none;
   transition: background 0.14s, border-color 0.14s, transform 0.06s;
   white-space: nowrap;
+  user-select: none;
 }
+.btn:focus-visible, .chip:focus-visible, .nav-item:focus-visible, .menu-btn:focus-visible { position: relative; z-index: 1; }
 .btn:hover { background: var(--bg-subtle); border-color: var(--border-strong); }
 .btn:active { transform: scale(0.98); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
@@ -383,6 +412,9 @@ svg.ic-sm { width: 13px; height: 13px; flex-shrink: 0; display: inline-block; ve
   transition: border-color 0.14s, box-shadow 0.14s;
 }
 .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12); }
+.input:disabled, select.input:disabled { background: var(--bg-subtle); color: var(--text-muted); cursor: not-allowed; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
+input[type="file"] { max-width: 100%; color: var(--text-secondary); }
 
 .row { display: flex; gap: 8px; align-items: center; }
 .row-wrap { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -419,7 +451,7 @@ svg.ic-sm { width: 13px; height: 13px; flex-shrink: 0; display: inline-block; ve
 .chip.active { background: var(--accent); color: #ffffff; border-color: var(--accent); }
 
 /* TABLES */
-.table-wrap { overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-md); }
+.table-wrap { overflow: auto; border: 1px solid var(--border-color); border-radius: var(--radius-md); scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
 table { width: 100%; min-width: 420px; border-collapse: collapse; font-size: 12.5px; }
 th {
   text-align: left;
@@ -435,6 +467,8 @@ th {
 td { padding: 9px 12px; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: #fafbfd; }
+tbody tr:nth-child(even) td { background: rgba(248, 250, 252, 0.48); }
+tbody tr:nth-child(even):hover td { background: #fafbfd; }
 
 /* HARDWARE & AUDIO CONTROLS */
 .action-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
@@ -456,6 +490,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   position: relative;
   overflow: hidden;
   padding: 8px;
+  isolation: isolate;
 }
 .cast-placeholder { max-width: 420px; }
 .cast-img-wrap {
@@ -652,6 +687,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   justify-content: center;
   z-index: 400;
   padding: 18px;
+  overscroll-behavior: contain;
 }
 .modal-backdrop.open { display: flex; }
 .modal-box {
@@ -680,6 +716,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   padding: 14px 16px;
   overflow: auto;
   flex: 1;
+  min-height: 0;
 }
 .code-editor {
   width: 100%;
@@ -719,6 +756,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   border-radius: var(--radius-md);
   font-size: 12.5px;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.22);
+  max-width: min(420px, calc(100vw - 24px));
+  overflow-wrap: anywhere;
 }
 
 /* OBJECT ALIGNMENT */
